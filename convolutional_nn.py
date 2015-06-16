@@ -187,9 +187,11 @@ def evaluate_lenet5(learning_rate=0.1, n_epoches=200,
 	train_set_y = T.cast(train_set_y, 'int32')
 	n_train_batches = train_set_x.get_value(borrow=True).shape[0]
 	n_valid_batches = train_set_x.get_value(borrow=True).shape[0]
+	n_test_batches = test_set_x.get_value(borrow=True).shape[0]
 
 	n_train_batches /= batch_size
 	n_valid_batches /= batch_size
+	n_test_batches /= batch_size
 
 	rng = np.random.RandomState(23455)
 
@@ -326,38 +328,30 @@ def evaluate_lenet5(learning_rate=0.1, n_epoches=200,
 					(epoch, minibatch_index + 1, n_train_batches,
 						this_validation_loss * 100.))
 
-				# if we got the best validation score until now
-				if this_validation_loss < best_validation_loss:
-
-					# improve patience if loss improvement is good enough
-					if this_validation_loss < best_validation_loss * \
-						improvement_threshold:
-						patience = max(patience, iter * patience_increase)
-
-					# save best validation score and iteration number
-					best_validation_loss = this_validation_loss
-					best_iter = iter
-
-			if patience <= iter:
-				done_looping = True
-				break
+				if (this_validation_loss * 100.) < 0.001:
+					done_looping = True
+					break
 
 	end_time = time.clock()
-	print >> sys.stderr, ('The code for file ' +
+	logging.info('The code for file ' +
 						os.path.split(__file__)[1] +
 							' ran for %.2fm' % ((end_time - start_time) / 60.))
 
 	# make a prediction and save file
 	# make a prediction
 	predict_model = theano.function(
-		inputs=[],
+		inputs=[index],
 		outputs= layer3.predict(),
 		givens={
-			x: test_set_x
+			x: test_set_x[index * batch_size: (index + 1) * batch_size]
 		}
 	)
 
-	testLabel = predict_model()
+	# save the result file
+	testLabel = np.array([])
+	for test_index in range(n_test_batches):
+		tempLabel = predict_model(test_index)
+		testLabel = np.hstack((testLabel, tempLabel))
 	util.saveResult(testLabel, './result/cnn_result.csv')
 
 if __name__ == '__main__':
